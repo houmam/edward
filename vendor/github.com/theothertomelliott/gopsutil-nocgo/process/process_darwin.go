@@ -5,7 +5,6 @@ package process
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -84,11 +83,6 @@ func (p *Process) Name() (string, error) {
 	return common.IntToString(k.Proc.P_comm[:]), nil
 }
 func (p *Process) Exe() (string, error) {
-	lsof_bin, err := exec.LookPath("lsof")
-	if err != nil {
-		return "", err
-	}
-
 	awk_bin, err := exec.LookPath("awk")
 	if err != nil {
 		return "", err
@@ -99,11 +93,10 @@ func (p *Process) Exe() (string, error) {
 		return "", err
 	}
 
-	lsof := exec.Command(lsof_bin, "-p", strconv.Itoa(int(p.Pid)), "-Fn")
 	awk := exec.Command(awk_bin, "NR==3{print}")
 	sed := exec.Command(sed_bin, "s/n\\//\\//")
 
-	output, _, err := common.Pipeline(lsof, awk, sed)
+	output, _, err := common.Pipeline(awk, sed)
 
 	if err != nil {
 		return "", err
@@ -169,24 +162,7 @@ func (p *Process) CreateTime() (int64, error) {
 func (p *Process) Cwd() (string, error) {
 	return "", common.ErrNotImplementedError
 }
-func (p *Process) Parent() (*Process, error) {
-	rr, err := common.CallLsof(invoke, p.Pid, "-FR")
-	if err != nil {
-		return nil, err
-	}
-	for _, r := range rr {
-		if strings.HasPrefix(r, "p") { // skip if process
-			continue
-		}
-		l := string(r)
-		v, err := strconv.Atoi(strings.Replace(l, "R", "", 1))
-		if err != nil {
-			return nil, err
-		}
-		return NewProcess(int32(v))
-	}
-	return nil, fmt.Errorf("could not find parent line")
-}
+
 func (p *Process) Status() (string, error) {
 	r, err := callPs("state", p.Pid, false)
 	if err != nil {
